@@ -10,54 +10,24 @@ loadPulse()
 function inputReals(size) {
     var result = new Float32Array(size);
     for (var i = 0; i < result.length; i++)
-	result[i] = (i % 2) / 4.0;
-    return result;
-}
-
-function zeroReals(size) {
-    var result = new Float32Array(size);
-    for (var i = 0; i < result.length; i++)
-	result[i] = 0.0;
+	result[i] = (Math.random()*2-1) / 4.0;
     return result;
 }
 
 function inputInterleaved(size) {
     var result = new Float32Array(size*2);
     for (var i = 0; i < size; i++)
-	result[i*2] = (i % 2) / 4.0;
-    return result;
-}
-
-function inputReal64s(size) {
-    var result = new Float64Array(size);
-    for (var i = 0; i < result.length; i++)
-	result[i] = (i % 2) / 4.0;
-    return result;
-}
-
-function zeroReal64s(size) {
-    var result = new Float64Array(size);
-    for (var i = 0; i < result.length; i++)
-	result[i] = 0.0;
-    return result;
-}
-
-function inputComplexArray(size) {
-    var result = new complex_array.ComplexArray(size);
-    for (var i = 0; i < size; i++) {
-	result.real[i] = (i % 2) / 4.0;
-	result.imag[i] = 0.0;
-    }
+	result[i*2] = (Math.random()*2-1) / 4.0;
     return result;
 }
 
 var iterations = 2000;
 
-function report(name, start, middle, end, total) {
+function report(name, start, middle, end, size) {
     function addTo(tag, thing) {
 	    document.getElementById(name + "-" + tag).innerHTML += thing + "<br>";
     }
-    addTo("result", total);
+    addTo("size", size);
     addTo("1", Math.round(middle - start) + " ms");
     addTo("2", Math.round(end - middle) + " ms");
     addTo("itr", Math.round((1000.0 /
@@ -65,8 +35,8 @@ function report(name, start, middle, end, total) {
 }
 
 function testFFTasm(size) {
-
     var fft = new KissFFTR(size);
+    var ri = [...Array(64)].map(() => inputReals(size));
 
     var start = performance.now();
     var middle = start;
@@ -78,20 +48,19 @@ function testFFTasm(size) {
 	if (i == iterations) {
 	    middle = performance.now();
 	}
-    var ri = inputReals(size);
-    var out = fft.forward(ri);
+    var out = fft.forward(ri[i%ri.length]);
     }
 
     var end = performance.now();
 
-    report("kissfft", start, middle, end, total);
+    report("kissfft", start, middle, end, size);
 
     fft.dispose();
 }
 
 function testFFTCCasm(size) {
-
     var fft = new KissFFT(size);
+    var cin = [...Array(64)].map(() => inputInterleaved(size));
 
     var start = performance.now();
     var middle = start;
@@ -103,19 +72,20 @@ function testFFTCCasm(size) {
 	if (i == iterations) {
 	    middle = performance.now();
 	}
-	var cin = inputInterleaved(size);
-    var out = fft.forward(cin);
+    var out = fft.forward(cin[i%cin.length]);
     }
 
     var end = performance.now();
 
-    report("kissfftcc", start, middle, end, total);
+    report("kissfftcc", start, middle, end, size);
 
     fft.dispose();
 }
 
 function testFFTwasm(size) {
     var fft = new pulse.fftReal(size);
+    var ri = [...Array(64)].map(() => inputReals(size));
+  
     var start = performance.now();
     var middle = start;
     var end = start;
@@ -126,18 +96,18 @@ function testFFTwasm(size) {
       if (i == iterations) {
         middle = performance.now();
       }
-      var ri = inputReals(size);
-      var out = fft.forward(ri);
+      var out = fft.forward(ri[i%ri.length]);
     }
     var end = performance.now();
 
-    report("WASMkissfft", start, middle, end, total);
+    report("WASMkissfft", start, middle, end, size);
 
     fft.dispose();
   }
 
   function testFFTCCwasm(size) {
     var fft = new pulse.fftComplex(size);
+    var cin = [...Array(64)].map(() => inputInterleaved(size));
 
     var start = performance.now();
     var middle = start;
@@ -149,13 +119,12 @@ function testFFTwasm(size) {
       if (i == iterations) {
         middle = performance.now();
       }
-      var cin = inputInterleaved(size);
-      var out = fft.forward(cin);
+      var out = fft.forward(cin[i%cin.length]);
     }
 
     var end = performance.now();
 
-    report("WASMkissfftcc", start, middle, end, total);
+    report("WASMkissfftcc", start, middle, end, size);
 
     fft.dispose();
   }
