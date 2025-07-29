@@ -80,15 +80,6 @@ function testFFTasm(size) {
 	}
     var ri = inputReals(size);
     var out = fft.forward(ri);
-
-	for (var j = 0; j <= size/2; ++j) {
-	    total += Math.sqrt(out[j*2] * out[j*2] + out[j*2+1] * out[j*2+1]);
-	}
-	// KissFFTR returns only the first half of the output (plus
-	// DC/Nyquist) -- synthesise the conjugate half
-	for (var j = 1; j < size/2; ++j) {
-	    total += Math.sqrt(out[j*2] * out[j*2] + out[j*2+1] * out[j*2+1]);
-	}
     }
 
     var end = performance.now();
@@ -114,10 +105,6 @@ function testFFTCCasm(size) {
 	}
 	var cin = inputInterleaved(size);
     var out = fft.forward(cin);
-
-	for (var j = 0; j < size; ++j) {
-	    total += Math.sqrt(out[j*2] * out[j*2] + out[j*2+1] * out[j*2+1]);
-	}
     }
 
     var end = performance.now();
@@ -141,14 +128,6 @@ function testFFTwasm(size) {
       }
       var ri = inputReals(size);
       var out = fft.forward(ri);
-      for (var j = 0; j <= size/2; ++j) {
-        total += Math.sqrt(out[j*2] * out[j*2] + out[j*2+1] * out[j*2+1]);
-      }
-      // KissFFTR returns only the first half of the output (plus
-      // DC/Nyquist) -- synthesise the conjugate half
-      for (var j = 1; j < size/2; ++j) {
-        total += Math.sqrt(out[j*2] * out[j*2] + out[j*2+1] * out[j*2+1]);
-      }
     }
     var end = performance.now();
 
@@ -172,9 +151,6 @@ function testFFTwasm(size) {
       }
       var cin = inputInterleaved(size);
       var out = fft.forward(cin);
-      for (var j = 0; j < size; ++j) {
-        total += Math.sqrt(out[j*2] * out[j*2] + out[j*2+1] * out[j*2+1]);
-      }
     }
 
     var end = performance.now();
@@ -184,7 +160,7 @@ function testFFTwasm(size) {
     fft.dispose();
   }
 
-var sizes = [ 4, 8, 512, 2048, 4096 ];
+var sizes = [ 4, 8, 512, 2048, 4096, 8192 ];
 var tests = [testFFTasm, testFFTCCasm, testFFTwasm, testFFTCCwasm];
 var nextTest = 0;
 var nextSize = 0;
