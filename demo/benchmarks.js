@@ -6,6 +6,59 @@ loadPulse()
         console.log("Error in loading module: ", err);
     });
 
+/**
+ * @param {number} N - FFT points (must be a power of 2, and at least 2)
+ * @returns {(x: Float32Array | Float64Array) => Float64Array} FFT function.
+ *   must be passed an array of length 2*N (real0, imag0, real1, imag1, ...).
+ *   the argument will be left untouched and an array of the same length and layout
+ *   will be returned with the result. the first complex number of the array is DC.
+ *   **the buffer is reused/overwritten on future invocations.**
+ */
+function makeFFT(N) {
+	if (N !== (N >>> 0))
+		throw new Error('not an u32')
+	const Nb = Math.log2(N) | 0
+	if (N !== (1 << Nb) || Nb < 1)
+		throw new Error('not a power of two, or too small')
+
+	// calculate the twiddle factors
+	const twiddle = new Float64Array(2*N)
+	for (let i = 0; i < N; i++) {
+		const arg = - 2 * Math.PI * i / N;
+		twiddle[2*i+0] = Math.cos(arg);
+		twiddle[2*i+1] = Math.sin(arg);
+	}
+
+	const sizeMask = 2*N - 1;
+	function phase(
+		/** @type {number} */ idx,
+		/** @type {Float64Array | Float32Array} */ src,
+		/** @type {Float64Array | Float32Array} */ dst,
+	) {
+		const stride = 1 << (Nb - idx), mask = stride - 1
+		for (let o = 0; o < 2*N; o += 2) {
+			const i = o & ~mask, O = o & mask
+			const i1 = ((i<<1) & sizeMask) + O, i2 = i1 + stride
+			// if JS had complexes: dst[o] = src[i1] + twiddle[i] * src[i2]
+			dst[o+0] = src[i1+0] + twiddle[i+0] * src[i2+0] - twiddle[i+1] * src[i2+1];
+			dst[o+1] = src[i1+1] + twiddle[i+0] * src[i2+1] + twiddle[i+1] * src[i2+0];
+		}
+	}
+
+	let a = new Float64Array(2*N)
+	let b = new Float64Array(2*N)
+	return function fft(src) {
+		if (src.length !== 2*N)
+			throw new Error('invalid length')
+		phase(0, src, a)
+		for (let idx = 1; idx < Nb; idx++) {
+			phase(idx, a, b)
+			; [a, b] = [b, a]
+		}
+		return a
+	}
+}
+
 /* Utility functions to generate arbitrary input in various formats */
 function inputReals(size) {
     var result = new Float32Array(size);
@@ -129,8 +182,30 @@ function testFFTwasm(size) {
     fft.dispose();
   }
 
+  function testFFTCCjs(size) {
+    var fft = makeFFT(size);
+    var cin = [...Array(64)].map(() => inputInterleaved(size));
+
+    var start = performance.now();
+    var middle = start;
+    var end = start;
+
+    total = 0.0;
+
+    for (var i = 0; i < 2*iterations; ++i) {
+      if (i == iterations) {
+        middle = performance.now();
+      }
+      var out = fft(cin[i%cin.length]);
+    }
+
+    var end = performance.now();
+
+    report("JSfftcc", start, middle, end, size);
+  }
+
 var sizes = [ 4, 8, 512, 2048, 4096, 8192 ];
-var tests = [testFFTasm, testFFTCCasm, testFFTwasm, testFFTCCwasm];
+var tests = [testFFTasm, testFFTCCasm, testFFTwasm, testFFTCCwasm, testFFTCCjs];
 var nextTest = 0;
 var nextSize = 0;
 var interval;
