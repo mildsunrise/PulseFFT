@@ -66,6 +66,65 @@ function makeFFT(N) {
 	}
 }
 
+/**
+ * @template T
+ * @param {{ buffer: ArrayBuffer, byteOffset: number, byteLength: number }} x
+ * @param {{ new (buffer: ArrayBuffer, offset: number, length: number): T, readonly BYTES_PER_ELEMENT: number }} cls
+ * @returns {T}
+ */
+const cast = (x, cls) => new cls(x.buffer, x.byteOffset, x.byteLength / cls.BYTES_PER_ELEMENT)
+
+const wasmSrc = 'AGFzbQEAAAABCQFgBX9/f39/AAMCAQAFAwEAAAcVAghmZnRQaGFzZQAABm1lbW9yeQIACsQBAcEBAgZ/B30gACACdkECdCIGQQFrIgdBf3MhAiAAQQJ0IQADQCAAIAVKBEAgBSAHcSACIAVxIghBAXRyIgkgA2oiCioCACELIAoqAgQhDCAEIAVqIgogCyABIAhqIggqAgAiECADIAYgCWpqIgkqAgAiEZQgCCoCBCINIAkqAgQiDpSTIg+SOAIAIAogDCAQIA6UIA0gEZSSIg2SOAIEIAAgCmoiCCALIA+TOAIAIAggDCANkzgCBCAFQQhqIQUMAQsLCw=='
+const wasmMod = new WebAssembly.Module(Uint8Array.from(atob(wasmSrc), x => x.charCodeAt(0)))
+const { exports: { memory, fftPhase } } = new WebAssembly.Instance(wasmMod)
+
+let memoryCursor = 0
+function allocate(size, align=1) {
+	memoryCursor += ((-memoryCursor % align) + align) % align
+	const ptr = memoryCursor
+	memoryCursor += size
+	while (memory.buffer.byteLength < memoryCursor)
+		memory.grow(Math.max(1, (memory.buffer.byteLength * 2) / (1<<16)))
+	return new Uint8Array(memory.buffer, ptr, size)
+}
+
+/**
+ * @param {number} N - FFT points (must be a power of 2, and at least 2)
+ * @returns {(x: Float32Array | Float64Array) => Float32Array} FFT function.
+ *   must be passed an array of length 2*N (real0, imag0, real1, imag1, ...).
+ *   the argument will be left untouched and an array of the same length and layout
+ *   will be returned with the result. the first complex number of the array is DC.
+ *   **the buffer is reused/overwritten on future invocations.**
+ */
+function makeFFTwasm(N) {
+	if (N !== (N >>> 0))
+		throw new Error('not an u32')
+	const Nb = Math.log2(N) | 0
+	if (N !== (1 << Nb) || Nb < 1)
+		throw new Error('not a power of two, or too small')
+
+	// calculate the twiddle factors
+	const twiddle = cast(allocate(N*4, 8), Float32Array)
+	for (let i = 0; i < N; i++) {
+		const arg = - 2 * Math.PI * i / N;
+		twiddle[2*i+0] = Math.cos(arg);
+		twiddle[2*i+1] = Math.sin(arg);
+	}
+
+	let a = cast(allocate(2*N*4,8), Float32Array)
+	let b = cast(allocate(2*N*4, 8), Float32Array)
+	return function fft(src) {
+		if (src.length !== 2*N)
+			throw new Error('invalid length')
+		a.set(src)
+		for (let idx = 0; idx < Nb; idx++) {
+			fftPhase(N, twiddle.byteOffset, idx, a.byteOffset, b.byteOffset)
+			; [a, b] = [b, a]
+		}
+		return a
+	}
+}
+
 /* Utility functions to generate arbitrary input in various formats */
 function inputReals(size) {
     var result = new Float32Array(size);
@@ -211,8 +270,30 @@ function testFFTwasm(size) {
     report("JSfftcc", start, middle, end, size);
   }
 
+  function testFFTCCjs_wasm(size) {
+    var fft = makeFFTwasm(size);
+    var cin = [...Array(64)].map(() => inputInterleaved(size));
+
+    var start = performance.now();
+    var middle = start;
+    var end = start;
+
+    total = 0.0;
+
+    for (var i = 0; i < 2*iterations; ++i) {
+      if (i == iterations) {
+        middle = performance.now();
+      }
+      var out = fft(cin[i%cin.length]);
+    }
+
+    var end = performance.now();
+
+    report("JSWASMfftcc", start, middle, end, size);
+  }
+
 var sizes = [ 4, 8, 512, 2048, 4096, 8192 ];
-var tests = [testFFTasm, testFFTCCasm, testFFTwasm, testFFTCCwasm, testFFTCCjs];
+var tests = [testFFTasm, testFFTCCasm, testFFTwasm, testFFTCCwasm, testFFTCCjs, testFFTCCjs_wasm];
 var nextTest = 0;
 var nextSize = 0;
 var interval;
