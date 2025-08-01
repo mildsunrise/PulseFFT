@@ -22,28 +22,33 @@ function makeFFT(N) {
 		throw new Error('not a power of two, or too small')
 
 	// calculate the twiddle factors
-	const twiddle = new Float32Array(2*N)
-	for (let i = 0; i < N; i++) {
+	const twiddle = new Float32Array(N)
+	for (let i = 0; i < N/2; i++) {
 		const arg = - 2 * Math.PI * i / N;
 		twiddle[2*i+0] = Math.cos(arg);
 		twiddle[2*i+1] = Math.sin(arg);
 	}
 
-	const sizeMask = 2*N - 1;
 	function phase(
 		/** @type {number} */ idx,
 		/** @type {Float64Array | Float32Array} */ src,
 		/** @type {Float64Array | Float32Array} */ dst,
 	) {
 		const stride = 1 << (Nb - idx), mask = stride - 1
-		for (let o = 0; o < 2*N; o += 2) {
+		for (let o = 0; o < N; o += 2) {
 			const i = o & ~mask, O = o & mask
-			const i1 = ((i<<1) & sizeMask) + O, i2 = i1 + stride
-			// if JS had complexes: dst[o] = src[i1] + twiddle[i] * src[i2]
+			const i1 = (i<<1) + O, i2 = i1 + stride
+			// if JS had complexes: dst[o]   = src[i1] + twiddle[i] * src[i2]
+			//                      dst[o+N] = src[i1] - twiddle[i] * src[i2]
+			const ar = src[i1+0], ai = src[i1+1]
 			const tr = twiddle[i+0], ti = twiddle[i+1]
 			const sr = src[i2+0], si = src[i2+1]
-			dst[o+0] = src[i1+0] + tr * sr - ti * si
-			dst[o+1] = src[i1+1] + tr * si + ti * sr
+			const tsr = tr * sr - ti * si
+			const tsi = tr * si + ti * sr
+			dst[o+0] = ar + tsr
+			dst[o+1] = ai + tsi
+			dst[o+N+0] = ar - tsr
+			dst[o+N+1] = ai - tsi
 		}
 	}
 
