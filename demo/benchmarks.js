@@ -8,7 +8,7 @@ loadPulse()
 
 /**
  * @param {number} N - FFT points (must be a power of 2, and at least 2)
- * @returns {(x: Float32Array | Float64Array) => Float64Array} FFT function.
+ * @returns {(x: Float32Array | Float64Array) => Float32Array} FFT function.
  *   must be passed an array of length 2*N (real0, imag0, real1, imag1, ...).
  *   the argument will be left untouched and an array of the same length and layout
  *   will be returned with the result. the first complex number of the array is DC.
@@ -22,7 +22,7 @@ function makeFFT(N) {
 		throw new Error('not a power of two, or too small')
 
 	// calculate the twiddle factors
-	const twiddle = new Float64Array(2*N)
+	const twiddle = new Float32Array(2*N)
 	for (let i = 0; i < N; i++) {
 		const arg = - 2 * Math.PI * i / N;
 		twiddle[2*i+0] = Math.cos(arg);
@@ -40,13 +40,15 @@ function makeFFT(N) {
 			const i = o & ~mask, O = o & mask
 			const i1 = ((i<<1) & sizeMask) + O, i2 = i1 + stride
 			// if JS had complexes: dst[o] = src[i1] + twiddle[i] * src[i2]
-			dst[o+0] = src[i1+0] + twiddle[i+0] * src[i2+0] - twiddle[i+1] * src[i2+1];
-			dst[o+1] = src[i1+1] + twiddle[i+0] * src[i2+1] + twiddle[i+1] * src[i2+0];
+			const tr = twiddle[i+0], ti = twiddle[i+1]
+			const sr = src[i2+0], si = src[i2+1]
+			dst[o+0] = src[i1+0] + tr * sr - ti * si
+			dst[o+1] = src[i1+1] + tr * si + ti * sr
 		}
 	}
 
-	let a = new Float64Array(2*N)
-	let b = new Float64Array(2*N)
+	let a = new Float32Array(2*N)
+	let b = new Float32Array(2*N)
 	return function fft(src) {
 		if (src.length !== 2*N)
 			throw new Error('invalid length')
