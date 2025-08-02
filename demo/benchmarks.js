@@ -133,11 +133,11 @@ function inputReals(size) {
     return result;
 }
 
-function inputInterleaved(size) {
-    var result = new Float32Array(size*2);
-    for (var i = 0; i < size; i++)
-	result[i*2] = (Math.random()*2-1) / 4.0;
-    return result;
+function inputComplex(size) {
+	var result = new Float32Array(size*2);
+	for (var i = 0; i < size*2; i++)
+		result[i] = (Math.random()*2-1) / 4.0;
+	return result;
 }
 
 var iterations = 2000;
@@ -179,7 +179,7 @@ function testFFTasm(size) {
 
 function testFFTCCasm(size) {
     var fft = new KissFFT(size);
-    var cin = [...Array(64)].map(() => inputInterleaved(size));
+    var cin = [...Array(64)].map(() => inputComplex(size));
 
     var start = performance.now();
     var middle = start;
@@ -226,7 +226,7 @@ function testFFTwasm(size) {
 
   function testFFTCCwasm(size) {
     var fft = new pulse.fftComplex(size);
-    var cin = [...Array(64)].map(() => inputInterleaved(size));
+    var cin = [...Array(64)].map(() => inputComplex(size));
 
     var start = performance.now();
     var middle = start;
@@ -250,7 +250,7 @@ function testFFTwasm(size) {
 
   function testFFTCCjs(size) {
     var fft = makeFFT(size);
-    var cin = [...Array(64)].map(() => inputInterleaved(size));
+    var cin = [...Array(64)].map(() => inputComplex(size));
 
     var start = performance.now();
     var middle = start;
@@ -272,7 +272,7 @@ function testFFTwasm(size) {
 
   function testFFTCCjs_wasm(size) {
     var fft = makeFFTwasm(size);
-    var cin = [...Array(64)].map(() => inputInterleaved(size));
+    var cin = [...Array(64)].map(() => inputComplex(size));
 
     var start = performance.now();
     var middle = start;
